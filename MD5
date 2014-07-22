@@ -1,5 +1,8 @@
-2f7bc7729476f8b4018c4084b0ec1aaa *DESCRIPTION
-33d2248338f46a22790848b1a6581330 *NAMESPACE
-d317966641956103931072c601bdd61d *R/Package.R
-3f3499ddd593b9fd34b4a2ee40ec539f *man/documentation.Rd
-8ab327e4b202c0e7c14a56915a99709e *tests/Examples.r
+3b8452ed0667e57bdc8e64cb6766af27 *DESCRIPTION
+35b7b686b70e64368e9f504f267921c7 *NAMESPACE
+21ecfd29a6778be7e20923b1adf92d09 *R/heatmap.compress.R
+e9002c786b89b25d67c8ac09b1fc856f *R/heatmap.fit.R
+36f01b82829d24089e31c34939cd8d0b *R/heatmapFit-package.r
+e60e3e0807a1e32496f5f0958a0924c7 *man/heatmap.compress.Rd
+ea0a5c1fc60d9f142ffdb14dc93b5e9f *man/heatmap.fit.Rd
+9c17de95489013e48b1766a2c109d7e4 *man/heatmapFit.Rd
