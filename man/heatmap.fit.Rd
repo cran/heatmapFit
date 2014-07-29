@@ -49,7 +49,7 @@ Code to calculate AICc and GCV written by Michael Friendly (http://tolstoy.newca
 
 set.seed(123456)
 x <- runif(20000)
-y <- as.numeric( runif(20000) < pnorm(-x + 2*x^2) )
+y <- as.numeric( runif(20000) < pnorm(2*x - 1) )
 mod <- glm( y ~ x, family=binomial(link="probit"))
 pred <- predict(mod, type="response")
 
@@ -59,7 +59,7 @@ heatmap.fit(y, pred, reps=1000)
 
 set.seed(654321)
 x <- runif(1000)
-y <- as.numeric( runif(1000) < pnorm(-x + 2*x^2) )
+y <- as.numeric( runif(1000) < pnorm(2*x - 1) )
 pred <- predict(mod, type="response", newdata=data.frame(x))
 
 heatmap.fit(y, pred, reps=1000)

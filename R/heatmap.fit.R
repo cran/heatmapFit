@@ -35,7 +35,7 @@
 #' 
 #' set.seed(123456)
 #' x <- runif(20000)
-#' y <- as.numeric( runif(20000) < pnorm(-x + 2*x^2) )
+#' y <- as.numeric( runif(20000) < pnorm(2*x - 1) )
 #' mod <- glm( y ~ x, family=binomial(link="probit"))
 #' pred <- predict(mod, type="response")
 #' 
@@ -45,7 +45,7 @@
 #' 
 #' set.seed(654321)
 #' x <- runif(1000)
-#' y <- as.numeric( runif(1000) < pnorm(-x + 2*x^2) )
+#' y <- as.numeric( runif(1000) < pnorm(2*x - 1) )
 #' pred <- predict(mod, type="response", newdata=data.frame(x))
 #' 
 #' heatmap.fit(y, pred, reps=1000)
@@ -286,7 +286,7 @@ heatmap.fit<-function(y, pred, reps = 1000, span.l = "aicc", color = FALSE, comp
   }
   
   
-  par(mar=c(3,0,2,0))
+  par(mar=c(3,0,3,0))
   clr<-seq(.001,0.499,by=0.001)
   x.clr<-rep(5,length(clr))
   CLR<-cbind(clr,x.clr)
