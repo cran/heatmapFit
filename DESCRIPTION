@@ -1,6 +1,6 @@
 Package: heatmapFit
 Title: Fit statistic for binary dependent variable models
-Version: 2.0.1
+Version: 2.0.2
 Authors@R: c(person("Justin", "Esarey", role = c("aut", "cre"), email =
     "justin@justinesarey.com"), person("Andrew", "Pierce", role = "aut", email
     = "awpierc@emory.edu"), person("Jericho", "Du", role= "aut", email =
@@ -12,10 +12,10 @@ Description: Generates a fit plot for diagnosing misspecification in models of
 Depends: R (>= 3.1.1)
 License: GPL (>= 2)
 LazyData: true
-Packaged: 2014-07-29 17:28:23 UTC; jesarey
+Packaged: 2014-08-06 16:31:26 UTC; jesarey
 Author: Justin Esarey [aut, cre],
   Andrew Pierce [aut],
   Jericho Du [aut]
 NeedsCompilation: no
 Repository: CRAN
-Date/Publication: 2014-07-29 19:44:50
+Date/Publication: 2014-08-06 19:58:37

@@ -10,6 +10,7 @@
 #'
 #' @param y A vector of observations of the dependent variable (in \{0,1\}).
 #' @param pred A vector of model-predicted Pr(y = 1) corresponding to each element of \code{y}.
+#' @param calc.boot Calculate bootstrap-based p-values (default = \code{TRUE}) or not (= \code{FALSE}).
 #' @param reps Number of bootstrap replicates to generate (default = 1000).
 #' @param span.l Bandwidth for the nonparametric fit between \code{y} and \code{pred}. Defaults to "aicc", calculation of an AICc-minimizing bandwidth. Other options are "gcv", which minimizes the generalized cross-validation statistic, or a numerical bandwidth.
 #' @param color Whether the plot should be in color (\code{TRUE}) or grayscale (the default, \code{FALSE}).
@@ -41,14 +42,14 @@
 #' 
 #' heatmap.fit(y, pred, reps=1000)
 #' 
-#' ## out-of-sample prediction 
+#' ## out-of-sample prediction w/o bootstrap p-values
 #' 
 #' set.seed(654321)
 #' x <- runif(1000)
 #' y <- as.numeric( runif(1000) < pnorm(2*x - 1) )
 #' pred <- predict(mod, type="response", newdata=data.frame(x))
 #' 
-#' heatmap.fit(y, pred, reps=1000)
+#' heatmap.fit(y, pred, calc.boot=FALSE)
 #' 
 #' 
 #'
@@ -71,7 +72,7 @@
 #' 
 #' @export
 
-heatmap.fit<-function(y, pred, reps = 1000, span.l = "aicc", color = FALSE, compress.obs = TRUE, init.grid = 2000, ret.obs = FALSE, legend = TRUE){
+heatmap.fit<-function(y, pred, calc.boot = TRUE, reps = 1000, span.l = "aicc", color = FALSE, compress.obs = TRUE, init.grid = 2000, ret.obs = FALSE, legend = TRUE){
   
   temp.dat <- na.omit(data.frame(y = y, pred = pred))
   YY <- temp.dat$y
@@ -178,141 +179,175 @@ heatmap.fit<-function(y, pred, reps = 1000, span.l = "aicc", color = FALSE, comp
   for(j in 1:length(yo)){yo[j]<-max(min(yo[j],1),0)}   # keep yo in bounds
   
   
-  # determine the distribution of the heat map line
-  # using bootstrapping
-  
-  cat(c("Generating Bootstrap Predictions...","\n"))
-  
-  btstrp <- function(){                                  #bootstrapping function
+  # Code if bootstrap-based p-values are to be calculated.
+  if(calc.boot==TRUE){
     
-    y.obs.boot.count <- matrix(data=0, nrow=1, ncol=length(pred)) 
-    y.obs.bs.count  <- matrix(data=0, nrow=1, ncol=length(pr))
-    y.obs.boot.count.2 <- matrix(data=0, nrow=1, ncol=length(pred)) 
-    y.obs.bs.count.2  <- matrix(data=0, nrow=1, ncol=length(pr))
+    # determine the distribution of the heat map line
+    # using bootstrapping
     
-    pb <- txtProgressBar(min = 0, max = reps, style = 3)                    # text progress bar for bootstrap replicates
-        
-    for(i in 1:reps){
-      setTxtProgressBar(pb, i)
+    cat(c("Generating Bootstrap Predictions...","\n"))
+    
+    btstrp <- function(){                                  #bootstrapping function
       
-      # generate a bootstrapped y dataset from the bootstrapped data
-      if(comp.switch==1){
+      y.obs.boot.count <- matrix(data=0, nrow=1, ncol=length(pred)) 
+      y.obs.bs.count  <- matrix(data=0, nrow=1, ncol=length(pr))
+      y.obs.boot.count.2 <- matrix(data=0, nrow=1, ncol=length(pred)) 
+      y.obs.bs.count.2  <- matrix(data=0, nrow=1, ncol=length(pr))
+      
+      pb <- txtProgressBar(min = 0, max = reps, style = 3)                    # text progress bar for bootstrap replicates
+          
+      for(i in 1:reps){
+        setTxtProgressBar(pb, i)
         
-        boot.y.1 <- rbinom(n = length(list.compress$n.out), size = list.compress$n.out, prob = list.compress$pred.total.out)    
-        boot.y.0 <- list.compress$n.out - boot.y.1
+        # generate a bootstrapped y dataset from the bootstrapped data
+        if(comp.switch==1){
+          
+          boot.y.1 <- rbinom(n = length(list.compress$n.out), size = list.compress$n.out, prob = list.compress$pred.total.out)    
+          boot.y.0 <- list.compress$n.out - boot.y.1
+          
+          boot.y <- c( rep(0, length(boot.y.0)), rep(1, length(boot.y.1)) )
+          boot.pred <- signif( rep(list.compress$pred.total.out, 2), 10)
+          boot.weight <- ((boot.y.1 + boot.y.0)/sum(boot.y.1 + boot.y.0)) * c( (boot.y.0 / (boot.y.1 + boot.y.0)), (boot.y.1 / (boot.y.1 + boot.y.0)) )
+          
+        }else{
+          boot.pred <- pred
+          boot.y<-ifelse(runif(n, min=0, max=1)<boot.pred,1,0)  # simple binomial draw 
+          boot.weight<-rep(1, length(boot.y))
+        }
         
-        boot.y <- c( rep(0, length(boot.y.0)), rep(1, length(boot.y.1)) )
-        boot.pred <- signif( rep(list.compress$pred.total.out, 2), 10)
-        boot.weight <- ((boot.y.1 + boot.y.0)/sum(boot.y.1 + boot.y.0)) * c( (boot.y.0 / (boot.y.1 + boot.y.0)), (boot.y.1 / (boot.y.1 + boot.y.0)) )
+        plot.model3<-withCallingHandlers(tryCatch(loess(boot.y~boot.pred, degree=1, weights = boot.weight, span=span.l, control = loess.control(trace.hat=trace.hat.arg))),  warning = function(w){invokeRestart("muffleWarning")})  # calculate heat map line for each bootstrap; suppress minor warnings
+        y.obs.boot<-predict(plot.model3, newdata=boot.pred)                        # determine observed y using loess smooth
         
-      }else{
-        boot.pred <- pred
-        boot.y<-ifelse(runif(n, min=0, max=1)<boot.pred,1,0)  # simple binomial draw 
-        boot.weight<-rep(1, length(boot.y))
+        y.obs.boot.two<-predict(plot.model3, newdata=pr)                        # determine observed y using loess smooth    
+        
+        if(comp.switch==1){y.obs.boot <- y.obs.boot[list.compress$retained.obs]}
+        
+        for(j in 1:length(y.obs.boot)){y.obs.boot[j]<-max(min(y.obs.boot[j],1),0)}    # keep y.obs in bounds
+  
+        
+        for(j in 1:length(y.obs.boot.two)){y.obs.boot.two[j]<-max(min(y.obs.boot.two[j],1),0)}    # keep y.obs in bounds
+  
+        y.obs.boot.count <- y.obs.boot.count + as.numeric(y.obs<=y.obs.boot)
+        y.obs.bs.count <- y.obs.bs.count + as.numeric(yo<=y.obs.boot.two)
+        y.obs.boot.count.2 <- y.obs.boot.count.2 + as.numeric(y.obs<y.obs.boot)
+        y.obs.bs.count.2 <- y.obs.bs.count.2 + as.numeric(yo<y.obs.boot.two)
+        
       }
       
-      plot.model3<-withCallingHandlers(tryCatch(loess(boot.y~boot.pred, degree=1, weights = boot.weight, span=span.l, control = loess.control(trace.hat=trace.hat.arg))),  warning = function(w){invokeRestart("muffleWarning")})  # calculate heat map line for each bootstrap; suppress minor warnings
-      y.obs.boot<-predict(plot.model3, newdata=boot.pred)                        # determine observed y using loess smooth
+      y.obs.boot.count <- (y.obs.boot.count + y.obs.boot.count.2)/2
+      y.obs.bs.count <- (y.obs.bs.count + y.obs.bs.count.2)/2
       
-      y.obs.boot.two<-predict(plot.model3, newdata=pr)                        # determine observed y using loess smooth    
-      
-      if(comp.switch==1){y.obs.boot <- y.obs.boot[list.compress$retained.obs]}
-      
-      for(j in 1:length(y.obs.boot)){y.obs.boot[j]<-max(min(y.obs.boot[j],1),0)}    # keep y.obs in bounds
-
-      
-      for(j in 1:length(y.obs.boot.two)){y.obs.boot.two[j]<-max(min(y.obs.boot.two[j],1),0)}    # keep y.obs in bounds
-
-      y.obs.boot.count <- y.obs.boot.count + as.numeric(y.obs<=y.obs.boot)
-      y.obs.bs.count <- y.obs.bs.count + as.numeric(yo<=y.obs.boot.two)
-      y.obs.boot.count.2 <- y.obs.boot.count.2 + as.numeric(y.obs<y.obs.boot)
-      y.obs.bs.count.2 <- y.obs.bs.count.2 + as.numeric(yo<y.obs.boot.two)
-      
+      return(list(y.obs.boot.count, y.obs.bs.count))
+      close(pb)
+    }
+  
+    
+    return.list <- btstrp()
+    y.obs.boot.count <- return.list[[1]]
+    y.obs.bs.count <- return.list[[2]]
+    
+    y.obs.prob.t <- y.obs.boot.count/reps
+    y.obs.prob2.t <- y.obs.bs.count/reps
+    
+    y.obs.prob<-pmin(y.obs.prob.t, 1-y.obs.prob.t)
+    y.obs.prob2<-pmin(y.obs.prob2.t, 1-y.obs.prob2.t)
+  
+    
+    
+    # Construct the heat map plot
+    
+    def.par <- par(no.readonly = TRUE)
+    o<-order(pred)
+    nf <- layout(matrix(c(1,2),1,2,byrow=TRUE), widths=c(0.75,0.25), heights=1)
+    par(oma=c(0,0,3,0))
+    y.offset <- 0.1 * ( max(c(pred,y.obs)) - min(c(pred,y.obs)) )
+    plot(y.obs[o]~pred[o], type="n", ylim=c(min(c(pred,y.obs))-y.offset, max(c(pred,y.obs))),ylab="Smoothed Empirical Pr(y=1)", xlab="Model Prediction, Pr(y=1)", main="Heat Map Plot")
+    
+    f<-cbind(yo,pr)
+    if(color==T){
+      for(i in 1:length(pr)){
+        segments(f[i,2]-(tick/2),f[i,1],f[i,2]+(tick/2),f[i,1],col=rgb(red=2*255*(.5-y.obs.prob2[i]),green=0,blue=2*255*(y.obs.prob2[i]),maxColorValue = 255),lwd=5)
+      }
+    }else{
+      for(i in 1:length(pr)){
+        segments(f[i,2]-(tick/2),f[i,1],f[i,2]+(tick/2),f[i,1],col=gray((1/.6)*(y.obs.prob2[i])),lwd=5)
+      }   
+    }
+    abline(0,1, lty=2)
+    if(legend==T){legend("topleft", lty=c(1,2), lwd=c(5,1), legend=c("heat map line","perfect fit"))}
+    
+    #rug(pred[o])
+    # add a data density histogram
+    par(new=T)
+    if(comp.switch==1){
+      h <- hist(pred.old, breaks=50, plot=F)
+      h$density <- h$density * (0.1/max(h$density))
+      plot(h, freq=F, ylim=c(0.04,1), xlim=c(min(pred), max(pred)), axes=F, ylab="", xlab="", main="", col="black")
+    }else{
+      h <- hist(pred, breaks=50, plot=F)
+      h$density <- h$density * (0.1/max(h$density))
+      plot(h, freq=F, ylim=c(0.04,1), xlim=c(min(pred), max(pred)), axes=F, ylab="", xlab="", main="", col="black")
     }
     
-    y.obs.boot.count <- (y.obs.boot.count + y.obs.boot.count.2)/2
-    y.obs.bs.count <- (y.obs.bs.count + y.obs.bs.count.2)/2
     
-    return(list(y.obs.boot.count, y.obs.bs.count))
-    close(pb)
-  }
-
-  
-  return.list <- btstrp()
-  y.obs.boot.count <- return.list[[1]]
-  y.obs.bs.count <- return.list[[2]]
-  
-  y.obs.prob.t <- y.obs.boot.count/reps
-  y.obs.prob2.t <- y.obs.bs.count/reps
-  
-  y.obs.prob<-pmin(y.obs.prob.t, 1-y.obs.prob.t)
-  y.obs.prob2<-pmin(y.obs.prob2.t, 1-y.obs.prob2.t)
-
-  
-  
-  # Construct the heat map plot
-  
-  def.par <- par(no.readonly = TRUE)
-  o<-order(pred)
-  nf <- layout(matrix(c(1,2),1,2,byrow=TRUE), widths=c(0.75,0.25), heights=1)
-  par(oma=c(0,0,3,0))
-  y.offset <- 0.1 * ( max(c(pred,y.obs)) - min(c(pred,y.obs)) )
-  plot(y.obs[o]~pred[o], type="n", ylim=c(min(c(pred,y.obs))-y.offset, max(c(pred,y.obs))),ylab="Smoothed Empirical Pr(y=1)", xlab="Model Prediction, Pr(y=1)", main="Heat Map Plot")
-  
-  f<-cbind(yo,pr)
-  if(color==T){
-    for(i in 1:length(pr)){
-      segments(f[i,2]-(tick/2),f[i,1],f[i,2]+(tick/2),f[i,1],col=rgb(red=2*255*(.5-y.obs.prob2[i]),green=0,blue=2*255*(y.obs.prob2[i]),maxColorValue = 255),lwd=5)
+    par(mar=c(3,0,3,0))
+    clr<-seq(.001,0.499,by=0.001)
+    x.clr<-rep(5,length(clr))
+    CLR<-cbind(clr,x.clr)
+    if(color==T){
+      plot(CLR[,1]~CLR[,2],bty="n",pch=15,xaxt="n",yaxt="n",xlab=" ",ylab=" ",main="p-Value\nLegend",xlim=c(4.9,5.1),col=rgb(red=2*255*(.5-CLR[,1]),green=0,blue=2*255*(CLR[,1]),maxColorValue = 255))
+    }else{
+      plot(CLR[,1]~CLR[,2],bty="n",pch=15,xaxt="n",yaxt="n",xlab=" ",ylab=" ",main="p-Value\nLegend",xlim=c(4.9,5.1),col=gray((1/.6)*(CLR[,1])))  
+    } 
+    axis(2,at=c(seq(.000,0.5,by=0.1)),labels=c(0.01,seq(.1,0.5,by=0.1)),line=-2,las=2)
+    
+    
+    mtext("Predicted Probability Deviation \n Model Predictions vs. Empirical Frequency",outer=T,line=0,adj=.5)
+    par(def.par)
+    
+    out1<-y.obs.prob
+    heatmapstat<-sum(as.numeric(out1<=0.1)*lo.weight)/sum(lo.weight)
+    cat("\n", "\n")
+    cat("*******************************************", " \n", sep="")
+    cat(heatmapstat*100, "% of Observations have one-tailed p-value <= 0.1", "\n", sep="")
+    cat("Expected Maximum = 20%", " \n", sep="")
+    cat("*******************************************", " \n", sep="")
+    cat("\n")
+    
+    if (ret.obs == T) {
+      return(list(heatmap.obs.p=out1))
     }
+
+    
+    
+  # If bootstrap-based SEs are NOT to be calculated...  
   }else{
-    for(i in 1:length(pr)){
-      segments(f[i,2]-(tick/2),f[i,1],f[i,2]+(tick/2),f[i,1],col=gray((1/.6)*(y.obs.prob2[i])),lwd=5)
-    }   
+    
+    # Construct the heat map plot
+    
+    par(oma=c(1,0,3,0))
+    y.offset <- 0.1 * ( max(c(pred,y.obs)) - min(c(pred,y.obs)) )
+    plot(yo~pr, type="l", lwd=5, col="darkgray", ylim=c(min(c(pred,y.obs))-y.offset, max(c(pred,y.obs))),ylab="Smoothed Empirical Pr(y=1)", xlab="Model Prediction, Pr(y=1)", main="Heat Map Plot")
+    abline(0,1, lty=2)
+    if(legend==T){legend("topleft", lty=c(1,2), lwd=c(5,1), col=c("darkgray", "black"), legend=c("heat map line","perfect fit"))}
+    
+    #rug(pred[o])
+    # add a data density histogram
+    par(new=T)
+    if(comp.switch==1){
+      h <- hist(pred.old, breaks=50, plot=F)
+      h$density <- h$density * (0.1/max(h$density))
+      plot(h, freq=F, ylim=c(0.04,1), xlim=c(min(pred), max(pred)), axes=F, ylab="", xlab="", main="", col="black")
+    }else{
+      h <- hist(pred, breaks=50, plot=F)
+      h$density <- h$density * (0.1/max(h$density))
+      plot(h, freq=F, ylim=c(0.04,1), xlim=c(min(pred), max(pred)), axes=F, ylab="", xlab="", main="", col="black")
+    }  
+    
+    mtext("Predicted Probability Deviation \n Model Predictions vs. Empirical Frequency",outer=T,line=0,adj=.5)
+    mtext("Note: bootstrap-based p-values not calculated for this plot.", outer=T, side=1, line=0, adj=.5, cex=0.8)
+    
+    
   }
-  abline(0,1, lty=2)
-  if(legend==T){legend("topleft", lty=c(1,2), lwd=c(5,1), legend=c("heat map line","perfect fit"))}
-  
-  #rug(pred[o])
-  # add a data density histogram
-  par(new=T)
-  if(comp.switch==1){
-    h <- hist(pred.old, breaks=50, plot=F)
-    h$density <- h$density * (0.1/max(h$density))
-    plot(h, freq=F, ylim=c(0.04,1), xlim=c(min(pred), max(pred)), axes=F, ylab="", xlab="", main="", col="black")
-  }else{
-    h <- hist(pred, breaks=50, plot=F)
-    h$density <- h$density * (0.1/max(h$density))
-    plot(h, freq=F, ylim=c(0.04,1), xlim=c(min(pred), max(pred)), axes=F, ylab="", xlab="", main="", col="black")
-  }
-  
-  
-  par(mar=c(3,0,3,0))
-  clr<-seq(.001,0.499,by=0.001)
-  x.clr<-rep(5,length(clr))
-  CLR<-cbind(clr,x.clr)
-  if(color==T){
-    plot(CLR[,1]~CLR[,2],bty="n",pch=15,xaxt="n",yaxt="n",xlab=" ",ylab=" ",main="p-Value\nLegend",xlim=c(4.9,5.1),col=rgb(red=2*255*(.5-CLR[,1]),green=0,blue=2*255*(CLR[,1]),maxColorValue = 255))
-  }else{
-    plot(CLR[,1]~CLR[,2],bty="n",pch=15,xaxt="n",yaxt="n",xlab=" ",ylab=" ",main="p-Value\nLegend",xlim=c(4.9,5.1),col=gray((1/.6)*(CLR[,1])))  
-  } 
-  axis(2,at=c(seq(.000,0.5,by=0.1)),labels=c(0.01,seq(.1,0.5,by=0.1)),line=-2,las=2)
-  
-  
-  mtext("Predicted Probability Deviation \n Model Predictions vs. Empirical Frequency",outer=T,line=0,adj=.5)
-  par(def.par)
-  
-  out1<-y.obs.prob
-  heatmapstat<-sum(as.numeric(out1<=.1)*lo.weight)/sum(lo.weight)
-  cat("\n", "\n")
-  cat("*******************************************", " \n", sep="")
-  cat(heatmapstat*100, "% of Observations have one-tailed p-value <= 0.10", " \n", sep="")
-  cat("Expected Maximum = 20%", " \n", sep="")
-  cat("*******************************************", " \n", sep="")
-  cat("\n")
-  
-  if (ret.obs == T) {
-    return(list(heatmap.obs.p=out1))
-  }
-  
   
 }

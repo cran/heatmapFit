@@ -3,13 +3,16 @@
 \alias{heatmap.fit}
 \title{Heatmap Fit Statistic for Binary Dependent Variable Models}
 \usage{
-heatmap.fit(y, pred, reps = 1000, span.l = "aicc", color = FALSE,
-  compress.obs = TRUE, init.grid = 2000, ret.obs = FALSE, legend = TRUE)
+heatmap.fit(y, pred, calc.boot = TRUE, reps = 1000, span.l = "aicc",
+  color = FALSE, compress.obs = TRUE, init.grid = 2000, ret.obs = FALSE,
+  legend = TRUE)
 }
 \arguments{
 \item{y}{A vector of observations of the dependent variable (in \{0,1\}).}
 
 \item{pred}{A vector of model-predicted Pr(y = 1) corresponding to each element of \code{y}.}
+
+\item{calc.boot}{Calculate bootstrap-based p-values (default = \code{TRUE}) or not (= \code{FALSE}).}
 
 \item{reps}{Number of bootstrap replicates to generate (default = 1000).}
 
@@ -55,14 +58,14 @@ pred <- predict(mod, type="response")
 
 heatmap.fit(y, pred, reps=1000)
 
-## out-of-sample prediction
+## out-of-sample prediction w/o bootstrap p-values
 
 set.seed(654321)
 x <- runif(1000)
 y <- as.numeric( runif(1000) < pnorm(2*x - 1) )
 pred <- predict(mod, type="response", newdata=data.frame(x))
 
-heatmap.fit(y, pred, reps=1000)
+heatmap.fit(y, pred, calc.boot=FALSE)
 
 
 
