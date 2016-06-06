@@ -27,7 +27,7 @@
 #' @author Andrew Pierce <awpierc@@emory.edu>
 #' @author Jericho Du <jericho.du@@gmail.com>
 #' @note Code to calculate AICc and GCV written by Michael Friendly (http://tolstoy.newcastle.edu.au/R/help/05/11/15899.html).
-#' @references Esarey, Justin and Andrew Pierce (2012). "Assessing Fit Quality and Testing for Misspecification in Binary Dependent Variable Models." \emph{Political Analysis} 20(4): 480-500.
+#' @references Esarey, Justin and Andrew Pierce (2012). "Assessing Fit Quality and Testing for Misspecification in Binary Dependent Variable Models." \emph{Political Analysis} 20(4): 480-500. DOI:10.1093/pan/mps026.
 #' 
 #' @examples
 #' \dontrun{
@@ -69,7 +69,13 @@
 #' system.time(heatmap.fit(y, pred, reps=100))
 #' system.time(heatmap.fit(y, pred, reps=100, compress.obs=FALSE))
 #' }
-#' 
+#'
+#' @import stats
+#' @import graphics
+#' @import grDevices
+#' @importFrom utils write.table
+#' @importFrom utils setTxtProgressBar
+#' @importFrom utils txtProgressBar
 #' @export
 
 heatmap.fit<-function(y, pred, calc.boot = TRUE, reps = 1000, span.l = "aicc", color = FALSE, compress.obs = TRUE, init.grid = 2000, ret.obs = FALSE, legend = TRUE){
@@ -150,7 +156,6 @@ heatmap.fit<-function(y, pred, calc.boot = TRUE, reps = 1000, span.l = "aicc", c
     
     # this is the optimization object; it just returns the AIC or GCV for a bandwidth argument
     smooth.err<-function(span.arg){
-      assign("last.warning", NULL, envir = baseenv())
       ok<-T
       plot.model<-withCallingHandlers(tryCatch(loess(YY~pred, degree=1, weights = lo.weight, span=span.arg, control = loess.control(trace.hat=trace.hat.arg))),  warning = function(w){ok<<-F; invokeRestart("muffleWarning")})
       if(ok==T){return(eval(parse(text=paste("loess.aic(plot.model)$", span.l, sep=""))))}
